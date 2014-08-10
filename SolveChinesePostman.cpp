@@ -292,7 +292,7 @@ int main(int argc, char ** argv){
 		}
 	}while(!(border_edge_subsets.emptymask()));
 	
-	std::cout << "---------- Best Result ----------" << std::endl;
+	std::cout << "# ---------- Best Result ----------" << std::endl;
 	std::cout << "# Total distance of all graph edges = " << total_distance << std::endl;
 	std::cout << "# Total distance of doubled edges = " << best_distance << std::endl;
 	std::cout << "# Total distance of traversed edges = " << total_distance + best_distance << std::endl;
