@@ -159,7 +159,7 @@ namespace ChinesePostman{
 		//       渡せるようにする
 		struct unexpected_graph_exception{};
 		
-		bool find_doubled_edges(const DistanceMatrix & distance_table, std::deque<SubRoute> & result, const masked_vector<ChinesePostman::Graph::vertex_descriptor> & border_vertices) const{
+		bool find_doubled_edges(const DistanceMatrix & distance_table, std::deque<SubRoute> & result, const masked_vector<ChinesePostman::Graph::vertex_descriptor> & border_vertices, const std::map<ChinesePostman::Graph::vertex_descriptor, size_t> & border_vertices_count) const{
 			size_t temp_id, i, j;
 			
 			// 奇数次数の頂点を集める
@@ -168,7 +168,7 @@ namespace ChinesePostman{
 			for(Graph::vertex_iterator itv = vertex_range.first; itv != vertex_range.second; ++itv){
 				bool appearing_as_mask;
 				size_t pos = border_vertices.index_orig(*itv, appearing_as_mask);
-				if((boost::out_degree(*itv, *this) + (pos != border_vertices.size() ? 1 : 0) + (appearing_as_mask ? 1 : 0)) % 2 == 1){
+				if((boost::out_degree(*itv, *this) + (pos != border_vertices.size() ? border_vertices_count.at(*itv) : 0) + (appearing_as_mask ? 1 : 0)) % 2 == 1){
 					odd_vertices.insert(*itv);
 				}
 			}
@@ -283,7 +283,8 @@ namespace ChinesePostman{
 		
 		inline void find_doubled_edges(const DistanceMatrix & distance_table, std::deque<SubRoute> & result) const{
 			masked_vector<ChinesePostman::Graph::vertex_descriptor> border_vertices;
-			find_doubled_edges(distance_table, result, border_vertices);
+			std::map<ChinesePostman::Graph::vertex_descriptor, size_t> border_vertices_count;
+			find_doubled_edges(distance_table, result, border_vertices, border_vertices_count);
 		}
 		
 		// グラフの内容を出力する。

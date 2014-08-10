@@ -59,6 +59,9 @@ int main(int argc, char ** argv){
 	// 値のsecond：当該頂点がmasked_vertices_origの何番目の要素であるか（後ほど指定）
 	std::map< ChinesePostman::Graph::vertex_descriptor, std::pair<size_t, size_t> > border_vertices;
 	
+	// cutの辺集合に頂点が何度出現しているか
+	std::map< ChinesePostman::Graph::vertex_descriptor, size_t > border_vertices_count, border_vertices_count_tmp;
+	
 	std::multiset<ChinesePostman::VirtualEdge> border_edges;
 	
 	
@@ -85,6 +88,8 @@ int main(int argc, char ** argv){
 			v2 = boost::target(*ite, rn);
 			border_vertices.insert(std::make_pair(v1, std::make_pair(-1, -1)));
 			border_vertices.insert(std::make_pair(v2, std::make_pair(-1, -1)));
+			border_vertices_count_tmp[v1] += 1;
+			border_vertices_count_tmp[v2] += 1;
 			border_edges.insert(ChinesePostman::VirtualEdge(v1, v2, rn.edgeweight(*ite)));
 		}
 	}
@@ -104,9 +109,11 @@ int main(int argc, char ** argv){
 	ChinesePostman::VertexMapping vmap; // vmapは「元のグラフ上での頂点をキー、分割後のグラフ上での頂点を値とする連想配列」
 	rn.connectedcomponents(division_result, vmap);
 	
-	// ---------- 連結要素のそれぞれについて、2回通る辺を決定する
+	// ---------- 連結要素のそれぞれについて、2回通る頂点を決定する
 	// ただしこのとき、境界の頂点は奇数回通るか偶数回通るかで場合わけする必要がある
 	// すなわち、（2^[境界の頂点数]）通りを試す必要がある
+	// フラグが立っていれば「境界側から当該駅を利用する回数は偶数回」
+	// そうでなければ奇数回
 	
 	std::vector< std::map< masked_vector<ChinesePostman::Graph::vertex_descriptor>::mask_type, std::deque<ChinesePostman::SubRoute> > > doubling_result(division_result.size());
 	std::vector< masked_vector<ChinesePostman::Graph::vertex_descriptor> > masked_vertices_orig(division_result.size());
@@ -131,6 +138,7 @@ int main(int argc, char ** argv){
 			if(itvb != border_vertices.end()){
 				itvb->second.first = graph_component_id;
 				border_vertices_subgraph[itvb->first] = *itv;
+				border_vertices_count[*itv] = border_vertices_count_tmp[itvb->first];
 			}
 		}
 		
@@ -175,7 +183,7 @@ int main(int argc, char ** argv){
 #endif // CHINESE_POSTMAN_DEBUG_DUMP
 			
 			// 組み合わせを求める
-			if(itg->find_doubled_edges(distance_table, doubling_result[graph_component_id][masked_vertices_sub[graph_component_id].mask()], masked_vertices_sub[graph_component_id])){
+			if(itg->find_doubled_edges(distance_table, doubling_result[graph_component_id][masked_vertices_sub[graph_component_id].mask()], masked_vertices_sub[graph_component_id], border_vertices_count)){
 #ifdef CHINESE_POSTMAN_DEBUG_DUMP
 				std::cerr << "[[Computed!!]]" << std::endl;
 #endif // CHINESE_POSTMAN_DEBUG_DUMP
@@ -216,6 +224,7 @@ int main(int argc, char ** argv){
 		// カット用の辺を1回通る/2回通るという組み合わせ（border_edge_subsets）について
 		// 対応する境界上の頂点を偶数回通るか奇数回通るか決定する
 		std::fill(mask_compo.begin(), mask_compo.end(), 0);
+		
 		std::pair<size_t, size_t> flag4vertex;
 		ChinesePostman::EdgeWeightType cut_distance = 0;
 		ChinesePostman::EdgeWeightType compo_distance = 0;
@@ -307,7 +316,7 @@ int main(int argc, char ** argv){
 	}
 	
 	for(graph_component_id = 0; graph_component_id < division_result.size(); ++graph_component_id){
-		std::cout << "# Edges traversed twice in component " << (graph_component_id+1) << "" << std::endl;
+		std::cout << "# Edges traversed twice in component " << (graph_component_id+1) << std::endl;
 		for(std::deque<ChinesePostman::SubRoute>::const_iterator its = best_doubling_result[graph_component_id]->cbegin(); its != best_doubling_result[graph_component_id]->cend(); ++its){
 			std::cout << its->weight << " ";
 			std::cout << its->v1 << " ";
