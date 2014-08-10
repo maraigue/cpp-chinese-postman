@@ -22,7 +22,7 @@
 
 ### 1. まずはビルドする
 
-まず、Makefile内に記載されている`BOOST`と`GLPKDEVEL`のパスを書き換えます。`BOOST`はboostをインストールした先のディレクトリ、`GLPKDEVEL`はGLPKをインストールした先の**一つ上**のディレクトリ（例えば、`libglpk.a`が`/usr/local/lib`に入っているならば`GLPKDEVEL=/usr/local`）を指定します。
+まず、Makefile内に記載されている`BOOST`と`GLPKDEVEL`のパスを書き換えます。`BOOST`はboostをインストールした先のディレクトリ、`GLPKDEVEL`はGLPKをインストールした先の**一つ上**のディレクトリ（例えば、libglpk.aが/usr/local/libに入っているならば`GLPKDEVEL=/usr/local`）を指定します。
 
 あとは
 
@@ -32,3 +32,40 @@
 
 ### 2. 普通に解く
 
+    ./SolveChinesePostman.exe jrhokkaido.edges
+
+のように実行します（Windows環境の場合、最初の`./`は不要）。
+
+    Computing the graph of Stations[0] = "岩見沢", Stations.size = 30, Edges.size = 36
+    ---------- Best Result ----------
+    # Total distance of all graph edges = 24577
+    # Total distance of doubled edges = 11073
+    # Total distance of traversed edges = 35650
+    # Edges traversed twice in cuts
+    # Edges traversed twice in component 1
+    348 岩見沢 白石
+    628 長万部 森
+    765 桑園 新十津川
+    （以下略）
+
+のような表示が出るはずです。ここで
+
+-   「Total distance of all graph edges」は、グラフ全体（jrhokkaido.edges）の辺の距離の総和です。
+-   「Total distance of doubled edges」は、グラフの辺のうち、最短経路で全線を乗り尽くして起点駅に戻れるようにするために、2回通らないとならない辺の距離の総和です（これ以外の辺は1回ずつのみ通ります）。
+-   「Total distance of traversed edges」は、グラフの辺のうち、最短経路で全線を乗り尽くして起点駅に戻るときの距離の総和です。すなわち、**「Total distance of all graph edges」と「Total distance of doubled edges」の和です**。
+
+この場合、JR北海道には2457.7kmの路線があり、うち下に列挙された区間（合計1107.3km）のみを2度乗車して残りを1度ずつのみ乗車すれば、最短距離の乗車で全線を乗り尽くせることを意味しています。
+
+### 3. 単純化してしてから解く
+
+この方法では、駅数や辺数が比較的小さい路線網であったためにそのまま解けましたが、JR全線などを相手にすると流石に時間がかかりすぎます。そこで「路線網を分割してから解く」機構を用意しています。
+
+まず以下のコマンドを実行します。
+
+    mkdir jrhokkaido
+    DivideByBridge.exe jrhokkaido.edges jrhokkaido
+
+ここで「jrhokkaido」ディレクトリを見ると、3つのファイル「subgraph-森.edges」「subgraph-滝川.edges」「bridges.edges」が入っています（「森」と「滝川」は別の駅の名前になっている可能性もあります）。
+
+これが意味するのは、1本の辺がなくなるだけで路線網が分断されるようなもの（これを「橋」という）を事前に集め、そこで路線網を分割することで解くべき問題を小さくしているのです。橋は「bridges.edges」に格納されます。  
+なお、橋については二度通ることが確定する（仮に一度しか通れないと仮定すると、起点駅に戻ることができなくなる）ので、あとは残った各部分（この場合は「subgraph-森.edges」「subgraph-滝川.edges」）について距離最小の通り方を考えればよいということになります。
