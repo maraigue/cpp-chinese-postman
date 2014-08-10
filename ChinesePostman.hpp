@@ -1,12 +1,13 @@
+#ifndef CHINESE_POSTMAN_HPP_
+#define CHINESE_POSTMAN_HPP_
+
+#include "ChinesePostmanUtil.hpp"
+#include "masked_vector.hpp"
 #include <glpk.h>
 #include <boost/graph/undirected_graph.hpp>
 #include <boost/graph/connected_components.hpp>
 #include <boost/graph/filtered_graph.hpp>
 #include <boost/graph/floyd_warshall_shortest.hpp>
-#include <unordered_set>
-#include <iostream>
-#include <fstream>
-#include <sstream>
 #include <map>
 #include <set>
 #include <deque>
@@ -16,114 +17,14 @@
 //#define CHINESE_POSTMAN_DEBUG_PROGRESS // 途中の計算がどの程度進んでいるか表示したい場合
 
 namespace ChinesePostman{
-	typedef int EdgeWeightType;
-	typedef boost::adjacency_list<boost::vecS, boost::setS, boost::undirectedS, boost::property<boost::vertex_name_t, std::string>, boost::property<boost::edge_weight_t, EdgeWeightType> > Graph;
-	
-	typedef std::map<Graph::vertex_descriptor, Graph::vertices_size_type> ComponentMap;
-	typedef std::map<Graph::vertex_descriptor, std::map<Graph::vertex_descriptor, EdgeWeightType> > DistanceMatrix;
-	
-	// グラフの連結成分のうち一つを取り出すための定義。
-	// boost::filtered_graph（元のグラフの構造を崩さないまま、部分グラフを
-	// 取得するためのクラス）を用いている。
-	// http://www.boost.org/doc/libs/1_55_0/libs/graph/doc/filtered_graph.html
-	// 
-	// connectedcomponentsメソッドで、ComponentMapのインスタンスに「頂点をキー、
-	// その頂点が何番目の連結成分に入っているかを値とする連想配列」が格納されるので、
-	// それを与え、そのうち一つの番号のみに属する辺・頂点を取り出す。
-	class EdgeInGroup{
-	private:
-		const Graph & source_graph_;
-		const ComponentMap & map_;
-		Graph::vertices_size_type group_id_;
-	public:
-		EdgeInGroup(const Graph & source_graph, const ComponentMap & map, Graph::vertices_size_type group_id) : source_graph_(source_graph), map_(map), group_id_(group_id) {}
-		bool operator()(Graph::edge_descriptor e) const {
-			ComponentMap::const_iterator it = map_.find(boost::source(e, source_graph_));
-			return it != map_.end() && it->second == group_id_;
-		}
-	};
-	
-	class VertexInGroup{
-	private:
-		const ComponentMap & map_;
-		Graph::vertices_size_type group_id_;
-	public:
-		VertexInGroup(const ComponentMap & map, Graph::vertices_size_type group_id) : map_(map), group_id_(group_id) {}
-		bool operator()(Graph::vertex_descriptor v) const {
-			ComponentMap::const_iterator it = map_.find(v);
-			return it != map_.end() && it->second == group_id_;
-		}
-	};
-	
-	class RouteNetwork;
-	typedef boost::filtered_graph<RouteNetwork, EdgeInGroup, VertexInGroup> GraphDivision;
-	typedef std::vector<RouteNetwork> RouteNetworkList;
-	typedef RouteNetworkList::iterator RouteNetworkListIterator;
-	typedef RouteNetworkList::const_iterator RouteNetworkListConstIterator;
-	
 	// 路線網を定義するクラス。
 	class RouteNetwork : public Graph{
 	public:
 		RouteNetwork() : Graph(){
 			// Do nothing
-		}
-		
-		// このインスタンスにファイルの内容を読み込む。
-		// 各行は「距離(正整数に限る) 地点名1 地点名2」と指定する。
-		// 返り値はグラフの距離の総和。エラーが発生した場合は0を返す。
-		EdgeWeightType read_from(const char * fname){
-			this->clear();
 			
-			std::ifstream ifs(fname, std::ios::in | std::ios::binary);
-			if(!ifs){
-				std::cerr << "ERROR: Given file \"" << fname << "\" cannot be opened" << std::endl;
-				return 0;
-			}
-			
-			EdgeWeightType distance, total_distance = 0;
-			std::map<std::string, vertex_descriptor> names2vertices;
-			std::string line, s[2];
-			vertex_descriptor vd[2];
-			std::map<std::string, vertex_descriptor>::iterator it;
-			
-			while(!(ifs.eof())){
-				// 行を読み込む
-				std::getline(ifs, line);
- 				if(line.length() == 0) continue;
-				
-				std::stringstream sst(line);
-				sst.seekg(0, std::ios_base::beg);
-				sst >> distance;
-				if(distance <= 0){
-					std::cerr << "ERROR: Distance less than zero or invalid distance found" << std::endl;
-					return 0;
-				}
-				sst >> s[0];
-				sst >> s[1];
-				if(s[0].empty() || s[1].empty()){
-					std::cerr << "ERROR: Station name invalid" << std::endl;
-					return 0;
-				}
-				
-				// 頂点を追加（まだ存在していないなら）
-				// names2verticesは「駅名をキー、頂点を値とする連想配列」
-				for(size_t i = 0; i <= 1; ++i){
-					it = names2vertices.find(s[i]);
-					
-					if(it == names2vertices.end()){
-						vd[i] = boost::add_vertex(s[i], *this);
-						names2vertices.insert(std::make_pair(s[i], vd[i]));
-					}else{
-						vd[i] = it->second;
-					}
-				}
-				
-				// 辺を追加
-				boost::add_edge(vd[0], vd[1], distance, *this);
-				total_distance += distance;
-			}
-			
-			return total_distance;
+			// ファイルの読み込みは ChinesePostmanUtil.hpp内の
+			// read_fromを参照
 		}
 		
 		// ------------------------------------------------------------
@@ -175,7 +76,7 @@ namespace ChinesePostman{
 					distance = 0;
 					for(out_edge_iterator ite = edge_range.first; ite != edge_range.second; ++ite, ++i){
 						sides[i] = vertex_target(*itv, *ite);
-						distance += boost::get(boost::edge_weight, *this, *ite);
+						distance += edgeweight(*ite);
 						links[i] = *ite;
 					}
 					if(links[0] == links[1]) continue; // 頂点が1つ・辺が1つの輪
@@ -192,13 +93,17 @@ namespace ChinesePostman{
 		}
 		
 		// 連結成分に分割した結果を返す。
-		// 結果は引数に格納される。
-		void connectedcomponents(RouteNetworkList & division_result) const{
+		// 結果は第1引数に格納される。
+		// また第2引数には、「元のグラフにおける頂点→新規に生成した頂点」という
+		// 値を持った連想配列が格納される。
+		void connectedcomponents(RouteNetworkList & division_result, VertexMapping & vertex_mapping) const{
 			size_t i;
+			vertex_mapping.clear();
 			
 			// 結果を格納するためのmap
 			ComponentMap compomap;
 			boost::associative_property_map<ComponentMap> prop_compomap(compomap);
+			
 			// 頂点に番号付けするためのmap
 			// http://stackoverflow.com/questions/15432104/how-to-create-a-propertymap-for-a-boost-graph-using-lists-as-vertex-container
 			ComponentMap indexmap;
@@ -224,44 +129,202 @@ namespace ChinesePostman{
 				// GraphDivision（boost::filtered_graph）のままだと
 				// ワーシャル＝フロイド法が使えないっぽいので
 				// RouteNetwork（boost::adjacency_list）に変換する。
-				// relは rel[part_graphの頂点] = division_result[gr]の頂点 の対応付け。
-				std::map<vertex_descriptor, vertex_descriptor> rel;
+				// vertex_mappingは vertex_mapping[part_graphの頂点] = division_result[gr]の頂点 の対応付け。
 				division_result[gr] = RouteNetwork();
 				
 				std::pair<GraphDivision::vertex_iterator, GraphDivision::vertex_iterator> vertex_range_part = boost::vertices(part_graph);
 				for(GraphDivision::vertex_iterator itv = vertex_range_part.first; itv != vertex_range_part.second; ++itv){
-					rel[*itv] = boost::add_vertex(boost::get(boost::vertex_name, *this, *itv), division_result[gr]);
+					vertex_mapping[*itv] = boost::add_vertex(vertexname(*itv), division_result[gr]);
 				}
 				std::pair<GraphDivision::edge_iterator, GraphDivision::edge_iterator> edge_range_part = boost::edges(part_graph);
 				for(GraphDivision::edge_iterator ite = edge_range_part.first; ite != edge_range_part.second; ++ite){
-					boost::add_edge(rel[boost::source(*ite, *this)], rel[boost::target(*ite, *this)], boost::get(boost::edge_weight, *this, *ite), division_result[gr]);
+					boost::add_edge(vertex_mapping[boost::source(*ite, *this)], vertex_mapping[boost::target(*ite, *this)], edgeweight(*ite), division_result[gr]);
 				}
 			}
 		}
 		
+		inline void connectedcomponents(RouteNetworkList & division_result) const{
+			VertexMapping vertex_mapping;
+			connectedcomponents(division_result, vertex_mapping);
+		}
+		
+		// 奇数次の辺の2つずつの組み合わせで、距離が最小になるような
+		// ものを求める。
+		// 結果は引数に順次push_backされる。
+		// 
+		// 
+		// TODO: 分割されたグラフの一部を対象とする場合、
+		//       頂点の次数の判定が「分割に使った辺を1回通るか
+		//       2回通るか」に依存するため、それを引数で
+		//       渡せるようにする
+		struct unexpected_graph_exception{};
+		
+		bool find_doubled_edges(const DistanceMatrix & distance_table, std::deque<SubRoute> & result, const masked_vector<ChinesePostman::Graph::vertex_descriptor> & border_vertices) const{
+			size_t temp_id, i, j;
+			
+			// 奇数次数の頂点を集める
+			std::set<Graph::vertex_descriptor> odd_vertices;
+			std::pair<Graph::vertex_iterator, Graph::vertex_iterator> vertex_range = boost::vertices(*this);
+			for(Graph::vertex_iterator itv = vertex_range.first; itv != vertex_range.second; ++itv){
+				bool appearing_as_mask;
+				size_t pos = border_vertices.index_orig(*itv, appearing_as_mask);
+				if((boost::out_degree(*itv, *this) + (pos != border_vertices.size() ? 1 : 0) + (appearing_as_mask ? 1 : 0)) % 2 == 1){
+					odd_vertices.insert(*itv);
+				}
+			}
+			if(odd_vertices.size() % 2 == 1){
+				// 奇数次の頂点が奇数個しかない
+				// これは状況による。border_verticesが空でないなら例外、
+				// そうでなければ単に何もせずに終了。
+				if(border_vertices.size() == 0){
+					std::cerr << "Unexpected Error: odd_vertices.size() == " << odd_vertices.size() << " (Expected an even number)" << std::endl;
+					throw unexpected_graph_exception();
+				}else{
+					return false;
+				}
+			}
+			// 奇数次の頂点がない（グラフはすでにオイラーグラフ）
+			// ならば、2回通る辺はない
+			if(odd_vertices.size() == 0) return true;
+			
+#ifdef CHINESE_POSTMAN_DEBUG_PROGRESS
+			std::cerr << "[DEBUG]   Size: #vertices = " << boost::num_vertices(*this) << " (#odd_vertices = " << odd_vertices.size() << "), #edges = " << boost::num_edges(*this) << ", vertex[0] = " << rn.vertexname(*(boost::vertices(*this).first)) << std::endl;
+#endif // CHINESE_POSTMAN_DEBUG_PROGRESS
+			
+			// ---------- 整数計画法で解く ----------
+			glp_prob *mip = glp_create_prob();
+			glp_set_obj_dir(mip, GLP_MIN);
+			
+			glp_add_rows(mip, odd_vertices.size());
+			
+			// 頂点（n個）に関する制約「最小マッチングにおいて必ず1回ずつ使う」
+			temp_id = 1;
+			for(std::set<Graph::vertex_descriptor>::iterator itv = odd_vertices.begin(); itv != odd_vertices.end(); ++itv){
+				glp_set_row_bnds(mip, temp_id, GLP_FX, 1.0, 1.0);
+				++temp_id;
+			}
+			
+			// 頂点の組（n_C_2個）に関する制約「最小マッチングにおいて高々1回使う」
+			size_t combinations = odd_vertices.size() * (odd_vertices.size() - 1) / 2;
+			glp_add_cols(mip, combinations);
+			std::vector<int> ia(combinations*2 + 1), ja(combinations*2 + 1);
+			std::vector<double> ar(combinations*2 + 1);
+			
+			temp_id = 1;
+			i = 1;
+			double val_coef;
+			
+			for(std::set<Graph::vertex_descriptor>::iterator itv1 = odd_vertices.begin(); itv1 != odd_vertices.end(); ++itv1){
+				std::set<Graph::vertex_descriptor>::iterator itv2 = itv1;
+				++itv2;
+				j = i + 1;
+				for(; itv2 != odd_vertices.cend(); ++itv2){
+					glp_set_col_kind(mip, temp_id, GLP_BV);
+					
+					val_coef = (double)(distance_table.at(*itv1).at(*itv2));
+					glp_set_obj_coef(mip, temp_id, val_coef);
+					
+					ia[temp_id] = i; ja[temp_id] = temp_id; ar[temp_id] = 1.0;
+					ia[temp_id+combinations] = j; ja[temp_id+combinations] = temp_id; ar[temp_id+combinations] = 1.0;
+					
+					// TODO:「itv1～itv2の最短経路が奇数次の点を途中で2つ以上通るならば、それらの任意の2つの組み合わせは結果に出てはならない」を式で表す
+					
+					++temp_id;
+					++j;
+				}
+				++i;
+			}
+			glp_load_matrix(mip, combinations*2, &(ia[0]), &(ja[0]), &(ar[0]));
+			
+			glp_iocp parm;
+			glp_init_iocp(&parm);
+			parm.presolve = GLP_ON;
+			
+			// GLPKに解かせる
+			int err = glp_intopt(mip, &parm);
+			if(err != 0){
+				std::cerr << "GLPK Error (Reason: " << err << ")" << std::endl;
+				glp_delete_prob(mip); // TODO: RAIIにするためにラッパーを書く
+				return false;
+			}
+			
+			// GLPKに解かせた結果を得る
+#if defined(CHINESE_POSTMAN_DEBUG_DUMP) || defined(CHINESE_POSTMAN_DEBUG_PROGRESS)
+			double opt_result = 
+#endif
+			glp_mip_obj_val(mip);
+			
+#if defined(CHINESE_POSTMAN_DEBUG_DUMP) || defined(CHINESE_POSTMAN_DEBUG_PROGRESS)
+			std::cout << "加算距離: " << opt_result << std::endl;
+#endif
+			
+			double varpos;
+			
+			temp_id = 1;
+			for(std::set<Graph::vertex_descriptor>::iterator itv1 = odd_vertices.begin(); itv1 != odd_vertices.end(); ++itv1){
+				std::set<Graph::vertex_descriptor>::iterator itv2 = itv1;
+				++itv2;
+				for(; itv2 != odd_vertices.end(); ++itv2){
+					varpos = glp_mip_col_val(mip, temp_id);
+					// varposは本来は0か1だけだが、小数点で出ることを考慮して
+					if(varpos > 0.5){
+						result.push_back(
+							SubRoute(
+								vertexname(*itv1), vertexname(*itv2),
+								distance_table.at(*itv1).at(*itv2)));
+					}
+					
+					++temp_id;
+				}
+			}
+			glp_delete_prob(mip);
+			return true;
+		}
+		
+		inline void find_doubled_edges(const DistanceMatrix & distance_table, std::deque<SubRoute> & result) const{
+			masked_vector<ChinesePostman::Graph::vertex_descriptor> border_vertices;
+			find_doubled_edges(distance_table, result, border_vertices);
+		}
+		
 		// グラフの内容を出力する。
-		void print() const{
+		void print(std::ostream & os) const{
 			std::pair<vertex_iterator, vertex_iterator> vertex_range = boost::vertices(*this);
 			
-			std::cout << "Vertices:";
+			os << "Vertices:";
 			if(vertex_range.first == vertex_range.second){
-				std::cout << " (None)" << std::endl;
+				os << " (None)" << std::endl;
 			}else{
 				for(vertex_iterator itv = vertex_range.first; itv != vertex_range.second; ++itv){
-					std::cout << " " << boost::get(boost::vertex_name, *this, *itv);
+					os << " " << vertexname(*itv);
 				}
-				std::cout << std::endl;
+				os << std::endl;
 			}
 			
 			std::pair<edge_iterator, edge_iterator> edge_range = boost::edges(*this);
 			
 			if(edge_range.first == edge_range.second){
-				std::cout << "  (No edge contained)" << std::endl;
+				os << "  (No edge contained)" << std::endl;
 			}else{
 				for(edge_iterator ite = edge_range.first; ite != edge_range.second; ++ite){
-					std::cout << "  Edge: "  << boost::get(boost::vertex_name, *this, boost::source(*ite, *this)) << " - " << boost::get(boost::vertex_name, *this, boost::target(*ite, *this)) << " (Distance = " << boost::get(boost::edge_weight, *this, *ite) << ")" << std::endl;
+					os << "  Edge: "  << vertexname(boost::source(*ite, *this)) << " - " << vertexname(boost::target(*ite, *this)) << " (Distance = " << edgeweight(*ite) << ")" << std::endl;
 				}
 			}
+		}
+		
+		void print() const{
+			print(std::cout);
+		}
+		
+		void print_bridge_list(std::ostream & os) const{
+			std::pair<edge_iterator, edge_iterator> edge_range = boost::edges(*this);
+			
+			for(edge_iterator ite = edge_range.first; ite != edge_range.second; ++ite){
+				os << edgeweight(*ite) << " " << vertexname(boost::source(*ite, *this)) << " " << vertexname(boost::target(*ite, *this)) << std::endl;
+			}
+		}
+		
+		void print_bridge_list() const{
+			print_bridge_list(std::cout);
 		}
 	};
 	
@@ -320,14 +383,6 @@ namespace ChinesePostman{
 	};
 	
 	class Solver{
-	public:
-		struct SubRoute{
-			std::string v1, v2;
-			EdgeWeightType weight;
-			
-			SubRoute(std::string vv1, std::string vv2, EdgeWeightType wweight) : v1(vv1), v2(vv2), weight(wweight) {}
-		};
-		
 	private:
 		// 橋の検出用。
 		// 橋（であるために2回通る必要のある辺）は p_bd->result() で得られる
@@ -350,9 +405,9 @@ namespace ChinesePostman{
 			for(std::set<Graph::edge_descriptor>::iterator ite = p_bd->result().begin(); ite != p_bd->result().end(); ++ite){
 				brigdes_.push_back(
 					SubRoute(
-						boost::get(boost::vertex_name, rn, boost::source(*ite, rn)),
-						boost::get(boost::vertex_name, rn, boost::target(*ite, rn)),
-						boost::get(boost::edge_weight, rn, *ite)));
+						rn.vertexname(boost::source(*ite, rn)),
+						rn.vertexname(boost::target(*ite, rn)),
+						rn.edgeweight(*ite)));
 				boost::remove_edge(*ite, rn);
 			}
 			
@@ -374,7 +429,8 @@ namespace ChinesePostman{
 			
 			// グラフを分割してからグラフ構造を表示
 			RouteNetworkList graph_divisions;
-			rn.connectedcomponents(graph_divisions);
+			VertexMapping vmap;
+			rn.connectedcomponents(graph_divisions, vmap);
 #ifdef CHINESE_POSTMAN_DEBUG_DUMP
 			std::cout << "[Graph Structure After Divided into Connected Components]" << std::endl;
 			for(RouteNetworkList::iterator itg = graph_divisions.begin(); itg != graph_divisions.end(); ++itg){
@@ -399,9 +455,9 @@ namespace ChinesePostman{
 #ifdef CHINESE_POSTMAN_DEBUG_DUMP
 				std::cout << "Graph (number of vertex(vertices): " << num_vertices(*itg) << "):" << std::endl;
 				for(std::map<RouteNetworkList::iterator, DistanceMatrix>::iterator itr1 = floyd_warshall_table[itg].begin(); itr1 != floyd_warshall_table[itg].end(); ++itr1){
-					std::cout << "Shortest paths from " << boost::get(boost::vertex_name, *itg, itr1->first) << ":" << std::endl;
+					std::cout << "Shortest paths from " << itg->vertexname(itr1->first) << ":" << std::endl;
 					for(std::map<RouteNetworkList::iterator, DistanceMatrix>::iterator itr2 = itr1->second.begin(); itr2 != itr1->second.end(); ++itr2){
-						std::cout << "    " << boost::get(boost::vertex_name, *itg, itr2->first) << ": " << itr2->second << std::endl;
+						std::cout << "    " << itg->vertexname(itr2->first) << ": " << itr2->second << std::endl;
 					}
 				}
 #endif // CHINESE_POSTMAN_DEBUG_DUMP
@@ -419,120 +475,11 @@ namespace ChinesePostman{
 			glp_term_out(GLP_OFF);
 #endif // CHINESE_POSTMAN_DEBUG_PROGRESS
 			
-			size_t temp_id, i, j;
 #ifdef CHINESE_POSTMAN_DEBUG_PROGRESS
 			std::cerr << "[DEBUG] Calculating Minimum Matching..." << std::endl;
 #endif // CHINESE_POSTMAN_DEBUG_PROGRESS
 			for(RouteNetworkList::iterator itg = graph_divisions.begin(); itg != graph_divisions.end(); ++itg){
-				// 奇数次数の頂点を集める
-				std::set<Graph::vertex_descriptor> odd_vertices;
-				std::pair<Graph::vertex_iterator, Graph::vertex_iterator> vertex_range = boost::vertices(*itg);
-				for(Graph::vertex_iterator itv = vertex_range.first; itv != vertex_range.second; ++itv){
-					if(boost::out_degree(*itv, *itg) % 2 == 1){
-						odd_vertices.insert(*itv);
-					}
-				}
-				if(odd_vertices.size() % 2 == 1){
-					// 奇数次の頂点が奇数個しかない（ありえない）
-					std::cerr << "Unexpected Error: odd_vertices.size() == " << odd_vertices.size() << " (Expected an even number)" << std::endl;
-					return 1;
-				}
-				if(odd_vertices.size() == 0){
-					// 奇数次の頂点がない（グラフはすでにオイラーグラフ）
-					continue;
-				}
-#ifdef CHINESE_POSTMAN_DEBUG_PROGRESS
-				std::cerr << "[DEBUG]   Size: #vertices = " << boost::num_vertices(*itg) << " (#odd_vertices = " << odd_vertices.size() << "), #edges = " << boost::num_edges(*itg) << ", vertex[0] = " << rn.vertexname(*(boost::vertices(*itg).first)) << std::endl;
-#endif // CHINESE_POSTMAN_DEBUG_PROGRESS
-				
-				// ---------- 整数計画法で解く ----------
-				glp_prob *mip = glp_create_prob();
-				glp_set_obj_dir(mip, GLP_MIN);
-				
-				glp_add_rows(mip, odd_vertices.size());
-				
-				// 頂点（n個）に関する制約「最小マッチングにおいて必ず1回ずつ使う」
-				temp_id = 1;
-				for(std::set<Graph::vertex_descriptor>::iterator itv = odd_vertices.begin(); itv != odd_vertices.end(); ++itv){
-					glp_set_row_bnds(mip, temp_id, GLP_FX, 1.0, 1.0);
-					++temp_id;
-				}
-				
-				// 頂点の組（n_C_2個）に関する制約「最小マッチングにおいて高々1回使う」
-				size_t combinations = odd_vertices.size() * (odd_vertices.size() - 1) / 2;
-				glp_add_cols(mip, combinations);
-				std::vector<int> ia(combinations*2 + 1), ja(combinations*2 + 1);
-				std::vector<double> ar(combinations*2 + 1);
-				
-				temp_id = 1;
-				i = 1;
-				double val_coef;
-				
-				for(std::set<Graph::vertex_descriptor>::iterator itv1 = odd_vertices.begin(); itv1 != odd_vertices.end(); ++itv1){
-					std::set<Graph::vertex_descriptor>::iterator itv2 = itv1;
-					++itv2;
-					j = i + 1;
-					for(; itv2 != odd_vertices.cend(); ++itv2){
-						glp_set_col_kind(mip, temp_id, GLP_BV);
-						
-						val_coef = (double)(floyd_warshall_table[itg].at(*itv1).at(*itv2));
-						glp_set_obj_coef(mip, temp_id, val_coef);
-						
-						ia[temp_id] = i; ja[temp_id] = temp_id; ar[temp_id] = 1.0;
-						ia[temp_id+combinations] = j; ja[temp_id+combinations] = temp_id; ar[temp_id+combinations] = 1.0;
-						
-						// TODO:「itv1～itv2の最短経路が奇数次の点を途中で2つ以上通るならば、それらの任意の2つの組み合わせは結果に出てはならない」を式で表す
-						
-						++temp_id;
-						++j;
-					}
-					++i;
-				}
-				glp_load_matrix(mip, combinations*2, &(ia[0]), &(ja[0]), &(ar[0]));
-				
-				glp_iocp parm;
-				glp_init_iocp(&parm);
-				parm.presolve = GLP_ON;
-				
-				// GLPKに解かせる
-				int err = glp_intopt(mip, &parm);
-				if(err != 0){
-					std::cerr << "GLPK Error (Reason: " << err << ")" << std::endl;
-					glp_delete_prob(mip); // TODO: RAIIにするためにラッパーを書く
-					continue;
-				}
-				
-				// GLPKに解かせた結果を得る
-#if defined(CHINESE_POSTMAN_DEBUG_DUMP) || defined(CHINESE_POSTMAN_DEBUG_PROGRESS)
-				double opt_result = 
-#endif
-				glp_mip_obj_val(mip);
-				
-#if defined(CHINESE_POSTMAN_DEBUG_DUMP) || defined(CHINESE_POSTMAN_DEBUG_PROGRESS)
-				std::cout << "加算距離: " << opt_result << std::endl;
-#endif
-				
-				double varpos;
-				
-				temp_id = 1;
-				for(std::set<Graph::vertex_descriptor>::iterator itv1 = odd_vertices.begin(); itv1 != odd_vertices.end(); ++itv1){
-					std::set<Graph::vertex_descriptor>::iterator itv2 = itv1;
-					++itv2;
-					for(; itv2 != odd_vertices.end(); ++itv2){
-						varpos = glp_mip_col_val(mip, temp_id);
-						// varposは本来は0か1だけだが、小数点で出ることを考慮して
-						if(varpos > 0.5){
-							doubled_edges_.push_back(
-								SubRoute(
-									boost::get(boost::vertex_name, rn, *itv1),
-									boost::get(boost::vertex_name, rn, *itv2),
-									floyd_warshall_table[itg].at(*itv1).at(*itv2)));
-						}
-						
-						++temp_id;
-					}
-				}
-				glp_delete_prob(mip);
+				itg->find_doubled_edges(floyd_warshall_table[itg], doubled_edges_);
 			}
 #ifdef CHINESE_POSTMAN_DEBUG_PROGRESS
 			std::cerr << "[DEBUG] Completed Calculating Minimum Matching!" << std::endl;
@@ -558,42 +505,4 @@ namespace ChinesePostman{
 	};
 } // namespace ChinesePostman
 
-int main(int argc, char ** argv){
-	if(argc <= 1){
-		std::cerr << "Usage: " << argv[0] << " FILENAME" << std::endl;
-		return 1;
-	}
-	
-	ChinesePostman::RouteNetwork rn;
-	ChinesePostman::EdgeWeightType total_distance = rn.read_from(argv[1]);
-	if(total_distance == 0){
-		std::cerr << "File-reading error!" << std::endl;
-		return 1;
-	}
-	
-	// グラフ構造を表示
-	std::cout << "[Graph Structure]" << std::endl;
-	rn.print();
-	std::cout << std::endl;
-	
-	// 解く
-	ChinesePostman::Solver slv(rn);
-	
-	// 結果を出力
-	ChinesePostman::EdgeWeightType added_distance = 0;
-	
-	for(std::deque<ChinesePostman::Solver::SubRoute>::const_iterator it = slv.bridges().begin(); it != slv.bridges().end(); ++it){
-		added_distance += it->weight;
-		std::cout << "2回乗車する必要のある区間<Bridge>: " << it->v1 << " - " << it->v2 << " (距離: " << it->weight << ")" << std::endl;
-	}
-	
-	for(std::deque<ChinesePostman::Solver::SubRoute>::const_iterator it = slv.doubled_edges().begin(); it != slv.doubled_edges().end(); ++it){
-		added_distance += it->weight;
-		std::cout << "2回乗車する必要のある区間<GLPK>:   " << it->v1 << " - " << it->v2 << " (距離: " << it->weight << ")" << std::endl;
-	}
-	std::cout << "路線総距離：　" << total_distance << std::endl;
-	std::cout << "重複乗車距離：" << added_distance << std::endl;
-	std::cout << "総乗車距離：　" << total_distance + added_distance << std::endl;
-	
-	return 0;
-}
+#endif // CHINESE_POSTMAN_HPP_
