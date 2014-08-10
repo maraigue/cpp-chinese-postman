@@ -99,6 +99,13 @@
 
 こうすると、結果として
 
+	# ---------- Best Result ----------
+	# Total distance of all graph edges = 578
+	# Total distance of doubled edges = 0
+	# Total distance of traversed edges = 578
+	# Edges traversed twice in cuts
+	# Edges traversed twice in component 1
+	（中略）
     # ---------- Best Result ----------
     # Total distance of all graph edges = 14808
     # Total distance of doubled edges = 1882
