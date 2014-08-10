@@ -52,7 +52,7 @@ def main
       resfile.puts "# Checking for the graph \"#{f}\""
       resfile.puts "# ========================================"
       
-      division_graph_name = ARGV[0] + "/division" + f[9..-1]
+      division_graph_name = ARGV[0] + "/division" + f[8..-1]
       graph_name = ARGV[0] + "/" + f
       
       if FileTest.file?(division_graph_name)
