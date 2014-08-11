@@ -14,6 +14,10 @@ def readgraph(filename)
   result
 end
 
+def graph_total_weight(graph)
+  graph.inject(0){ |i, j| i + j[:weight] }
+end
+
 class Tee
   def initialize(io)
     @io = io
@@ -47,6 +51,7 @@ def main
     resfilename = ARGV[0] + "/result.edges"
     resfile = Tee.new(open(resfilename, "wb"))
     
+    total_component_size = 0
     ents.grep(/\Asubgraph-(.+)\.edges\z/).each do |f|
       resfile.puts "# ========================================"
       resfile.puts "# Checking for the graph \"#{f}\""
@@ -54,6 +59,9 @@ def main
       
       division_graph_name = ARGV[0] + "/division" + f[8..-1]
       graph_name = ARGV[0] + "/" + f
+      
+      g = readgraph(graph_name)
+      total_component_size += graph_total_weight(g)
       
       if FileTest.file?(division_graph_name)
         resfile.print `./SolveChinesePostman.exe \"#{graph_name}\" \"#{division_graph_name}\"`
@@ -69,14 +77,15 @@ def main
     bridge_size = doubled_size = nil
     if FileTest.file?(ARGV[0] + "/bridges.edges")
       g = readgraph(ARGV[0] + "/bridges.edges")
-      bridge_size = g.inject(0){ |i, j| i + j[:weight] }
-      puts "@ Total distance of bridge edges = #{bridge_size}"
+      bridge_size = graph_total_weight(g)
     end
     if FileTest.file?(resfilename)
       g = readgraph(resfilename)
-      doubled_size = g.inject(0){ |i, j| i + j[:weight] }
-      puts "@ Total distance of doubled edges other than bridge = #{doubled_size}"
+      doubled_size = graph_total_weight(g)
     end
+    puts "@ Total distance of the graph = #{total_component_size + bridge_size}"
+    puts "@ Total distance of bridge edges = #{bridge_size}"
+    puts "@ Total distance of doubled edges other than bridge = #{doubled_size}"
     puts "@ Total distance of doubled edges = #{bridge_size + doubled_size}"
     
   elsif FileTest.file?(ARGV[0])
