@@ -24,6 +24,9 @@ int main(int argc, char ** argv){
 	rn.print();
 	std::cout << std::endl;
 	
+	// Ÿ”2‚Ì’¸“_‚ğœ‹
+	rn.remove_trivial_vertices();
+	
 	// ‹´‚ğŒŸo‚·‚é
 	ChinesePostman::BridgeDetector bd(rn);
 	
